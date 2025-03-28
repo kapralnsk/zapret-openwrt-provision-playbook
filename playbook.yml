@@ -1,0 +1,90 @@
+---
+- name: Install and configure zapret
+  hosts: 192.168.1.1
+  remote_user: root
+  vars:
+    zapret_github_repo: "bol-van/zapret"
+    zapret_install_dir: "/opt/zapret"
+    zapret_temp_dir: "/tmp"
+    ansible_ssh_pass: "{{ lookup('env', 'ROUTER_ROOT_PASSWORD') }}"
+
+  gather_facts: no
+
+  tasks:
+    - name: Get latest release tag from GitHub API
+      raw: |
+        curl -s https://api.github.com/repos/{{ zapret_github_repo }}/releases/latest | grep -o '"tag_name": ".*"' | cut -d'"' -f4
+      register: github_response
+      delegate_to: localhost
+      changed_when: false
+
+    - name: Set latest tag name
+      set_fact:
+        latest_tag: "{{ github_response.stdout.strip() }}"
+
+    - name: Download latest zapret release
+      raw: |
+        cd {{ zapret_temp_dir }} && \
+        wget -q https://github.com/{{ zapret_github_repo }}/archive/refs/tags/{{ latest_tag }}.tar.gz -O zapret-{{ latest_tag }}.tar.gz
+      register: download_result
+      changed_when: download_result.rc == 0
+
+    - name: Extract zapret archive
+      raw: |
+        cd {{ zapret_temp_dir }} && \
+        tar xzf zapret-{{ latest_tag }}.tar.gz && \
+        cp -r zapret-{{ latest_tag }}/* {{ zapret_install_dir }}/
+      register: extract_result
+      changed_when: extract_result.rc == 0
+
+    - name: Create VERSION file with tag name
+      raw: |
+        echo "{{ latest_tag }}" > {{ zapret_install_dir }}/VERSION
+      register: version_result
+      changed_when: version_result.rc == 0
+
+    - name: Copy config file to zapret directory
+      raw: |
+        cat > {{ zapret_install_dir }}/config << 'EOL'
+        {{ lookup('file', 'config') }}
+        EOL
+      register: config_result
+      changed_when: config_result.rc == 0
+
+    - name: Copy Discord configuration file
+      raw: |
+        cp {{ zapret_install_dir }}/init.d/custom.d.examples.linux/50-discord {{ zapret_install_dir }}/init.d/openwrt/custom.d/
+      register: discord_result
+      changed_when: discord_result.rc == 0
+
+    - name: Run install_easy.sh script
+      raw: |
+        cd {{ zapret_install_dir }} && ./install_easy.sh
+      register: install_result
+      changed_when: install_result.rc == 0
+
+    - name: Run get_antizapret_domains.sh script
+      raw: |
+        cd {{ zapret_install_dir }} && ./get_antizapret_domains.sh
+      register: domains_result
+      changed_when: domains_result.rc == 0
+
+    - name: Check if zapret service exists
+      raw: |
+        /etc/init.d/zapret enabled
+      register: service_check
+      changed_when: false
+
+    - name: Restart zapret service
+      raw: |
+        /etc/init.d/zapret restart
+      when: service_check.rc == 0
+      register: restart_result
+      changed_when: restart_result.rc == 0
+
+    - name: Enable zapret service
+      raw: |
+        /etc/init.d/zapret enable
+      when: service_check.rc != 0
+      register: enable_result
+      changed_when: enable_result.rc == 0
