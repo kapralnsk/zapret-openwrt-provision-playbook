@@ -36,7 +36,7 @@ AUTOHOSTLIST_DEBUGLOG=0
 MDIG_THREADS=30
 
 # ipset/*.sh can compress large lists
-GZIP_LISTS=0
+GZIP_LISTS=1
 # command to reload ip/host lists after update
 # comment or leave empty for auto backend selection : ipset or ipfw if present
 # on BSD systems with PF no auto reloading happens. you must provide your own command
@@ -53,7 +53,10 @@ TPPORT_SOCKS=987
 # use <HOSTLIST> and <HOSTLIST_NOAUTO> placeholders to engage standard hostlists and autohostlist in ipset dir
 # hostlist markers are replaced to empty string if MODE_FILTER does not satisfy
 # <HOSTLIST_NOAUTO> appends ipset/zapret-hosts-auto.txt as normal list
-TPWS_SOCKS_OPT="--filter-tcp=80 --methodeol <HOSTLIST> --new --filter-tcp=443 --split-tls=sni --disorder <HOSTLIST>"
+TPWS_SOCKS_OPT="
+--filter-tcp=80 --methodeol <HOSTLIST> --new
+--filter-tcp=443 --split-pos=1,midsld --disorder <HOSTLIST>
+"
 
 TPWS_ENABLE=0
 TPWS_PORTS=80,443
@@ -62,13 +65,13 @@ TPWS_PORTS=80,443
 # <HOSTLIST_NOAUTO> appends ipset/zapret-hosts-auto.txt as normal list
 TPWS_OPT="
 --filter-tcp=80 --methodeol <HOSTLIST> --new
---filter-tcp=443 --split-tls=sni --disorder <HOSTLIST>
+--filter-tcp=443 --split-pos=1,midsld --disorder <HOSTLIST>
 "
 
 NFQWS_ENABLE=1
 # redirect outgoing traffic with connbytes limiter applied in both directions.
 NFQWS_PORTS_TCP=80,443
-NFQWS_PORTS_UDP=443
+NFQWS_PORTS_UDP=443,50000-50099
 # PKT_OUT means connbytes dir original
 # PKT_IN means connbytes dir reply
 # this is --dpi-desync-cutoff=nX kernel mode implementation for linux. it saves a lot of CPU.
@@ -85,16 +88,12 @@ NFQWS_UDP_PKT_IN=0
 # use <HOSTLIST> and <HOSTLIST_NOAUTO> placeholders to engage standard hostlists and autohostlist in ipset dir
 # hostlist markers are replaced to empty string if MODE_FILTER does not satisfy
 # <HOSTLIST_NOAUTO> appends ipset/zapret-hosts-auto.txt as normal list
-NFQWS_OPT="
---filter-tcp=80 --dpi-desync=fake,multisplit --dpi-desync-split-pos=method+2 --dpi-desync-fooling=md5sig <HOSTLIST> --new
---filter-tcp=443 --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-fooling=badseq,md5sig <HOSTLIST> --new
---filter-udp=443 --dpi-desync=fake --dpi-desync-repeats=6 <HOSTLIST_NOAUTO>
-"
+NFQWS_OPT="--filter-tcp=80 --dpi-desync=fake,split2 --dpi-desync-autottl=2 --dpi-desync-fooling=md5sig <HOSTLIST> --new --filter-tcp=443 --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-autottl --dpi-desync-fooling=badseq --dpi-desync-repeats=8 <HOSTLIST> --new --filter-udp=443 --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=/opt/zapret/files/fake/quic_initial_www_google_com.bin <HOSTLIST_NOAUTO> --new --filter-udp=50000-50100 --filter-l7=discord,stun --dpi-desync=fake"
 
 # none,ipset,hostlist,autohostlist
 MODE_FILTER=hostlist
 
-# openwrt only : donttouch,none,software,hardware
+# donttouch,none,software,hardware
 FLOWOFFLOAD=donttouch
 
 # openwrt: specify networks to be treated as LAN. default is "lan"
